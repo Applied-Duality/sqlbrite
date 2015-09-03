@@ -25,7 +25,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.squareup.sqlbrite.SqlBrite.Query;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-final class RecordingObserver implements Observer<Query> {
+final class RecordingObserver extends Observer<Query> {
   private static final Object COMPLETED = "<completed>";
   private static final String TAG = RecordingObserver.class.getSimpleName();
 

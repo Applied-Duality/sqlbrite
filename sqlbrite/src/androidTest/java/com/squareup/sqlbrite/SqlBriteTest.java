@@ -50,6 +50,7 @@ import static com.squareup.sqlbrite.TestDb.TABLE_MANAGER;
 import static com.squareup.sqlbrite.TestDb.employee;
 import static com.squareup.sqlbrite.TestDb.manager;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @RunWith(AndroidJUnit4.class)
@@ -108,9 +109,10 @@ public final class SqlBriteTest {
     final List<String> logs = new ArrayList<>();
     db.setLoggingEnabled(false);
     db.setLogger(new SqlBrite.Logger() {
-      @Override public void log(String message) {
-        logs.add(message);
-      }
+        @Override
+        public void log(String message) {
+            logs.add(message);
+        }
     });
 
     db.insert(TABLE_EMPLOYEE, employee("john", "John Johnson"));
@@ -163,7 +165,7 @@ public final class SqlBriteTest {
 
   @Test public void queryObservesInsertDebounced() {
     db.createQuery(TABLE_EMPLOYEE, SELECT_EMPLOYEES)
-        .debounce(500, MILLISECONDS)
+        .throttle(500, MILLISECONDS)
         .subscribe(o);
     o.assertCursor()
         .hasRow("alice", "Alice Allison")
@@ -314,7 +316,8 @@ public final class SqlBriteTest {
   }
 
   @Test public void queryNotNotifiedAfterUnsubscribe() {
-    Subscription subscription = db.createQuery(TABLE_EMPLOYEE, SELECT_EMPLOYEES).subscribe(o);
+    Subscription subscription = o;
+    db.createQuery(TABLE_EMPLOYEE, SELECT_EMPLOYEES).subscribe(o);
     o.assertCursor()
         .hasRow("alice", "Alice Allison")
         .hasRow("bob", "Bob Bobberson")

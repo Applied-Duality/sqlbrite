@@ -32,9 +32,12 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+
 import rx.Observable;
-import rx.functions.Func1;
-import rx.subjects.PublishSubject;
+import rx.functions.Function;
+import rx.functions.Predicate;
+import rx.subjects.Subject;
 
 import static android.database.sqlite.SQLiteDatabase.CONFLICT_ABORT;
 import static android.database.sqlite.SQLiteDatabase.CONFLICT_FAIL;
@@ -75,7 +78,7 @@ public final class SqlBrite implements Closeable {
   private final SQLiteOpenHelper helper;
   private final ThreadLocal<Transaction> transactions = new ThreadLocal<>();
   /** Publishes sets of tables which have changed. */
-  private final PublishSubject<Set<String>> triggers = PublishSubject.create();
+  private final Subject<Set<String>> triggers = new Subject<>();
 
   // Read and write guarded by 'databaseLock'. Lazily initialized. Use methods to access.
   private volatile SQLiteDatabase readableDatabase;
@@ -249,8 +252,8 @@ public final class SqlBrite implements Closeable {
    */
   public Observable<Query> createQuery(@NonNull final String table, @NonNull String sql,
       @NonNull String... args) {
-    Func1<Set<String>, Boolean> tableFilter = new Func1<Set<String>, Boolean>() {
-      @Override public Boolean call(Set<String> triggers) {
+    Predicate<Set<String>> tableFilter = new Predicate<Set<String>>() {
+      @Override public boolean test(Set<String> triggers) {
         return triggers.contains(table);
       }
 
@@ -269,8 +272,8 @@ public final class SqlBrite implements Closeable {
    */
   public Observable<Query> createQuery(@NonNull final Iterable<String> tables, @NonNull String sql,
       @NonNull String... args) {
-    Func1<Set<String>, Boolean> tableFilter = new Func1<Set<String>, Boolean>() {
-      @Override public Boolean call(Set<String> triggers) {
+    Predicate<Set<String>> tableFilter = new Predicate<Set<String>>() {
+      @Override public boolean test(Set<String> triggers) {
         for (String table : tables) {
           if (triggers.contains(table)) {
             return true;
@@ -286,7 +289,7 @@ public final class SqlBrite implements Closeable {
     return createQuery(tableFilter, sql, args);
   }
 
-  private Observable<Query> createQuery(final Func1<Set<String>, Boolean> tableFilter,
+  private Observable<Query> createQuery(final Predicate<Set<String>> tableFilter,
       final String sql, final String... args) {
     if (transactions.get() != null) {
       throw new IllegalStateException("Cannot create observable query in transaction. "
@@ -306,11 +309,11 @@ public final class SqlBrite implements Closeable {
       }
     };
 
-    return triggers //
+    return triggers.asObservable() //
         .filter(tableFilter) // Only trigger on tables we care about.
         .startWith(INITIAL_TRIGGER) // Immediately execute the query for initial value.
-        .map(new Func1<Set<String>, Query>() {
-          @Override public Query call(Set<String> trigger) {
+        .map(new Function<Set<String>, Query>() {
+          @Override public Query apply(Set<String> trigger) {
             if (transactions.get() != null) {
               throw new IllegalStateException(
                   "Cannot subscribe to observable query in a transaction.");
